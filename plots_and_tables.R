@@ -52,7 +52,8 @@ con <- poolCheckout(pool)
 
 # columns <- dbListFields(con, name=Id(schema=schema, table = table_reserve))
 # columns <- columns[!columns %in% c("geom", "bygningcentroid")]
-
+################################################################################
+# Last inn data fra databasen
 plan_columns <- dbListFields(con, name=Id(schema=schema, table = table_plans))
 plan_columns <- plan_columns[!plan_columns %in% c("geom", "bygningcentroid")]
 plan_stats <- st_read(con, query=paste0("SELECT ", toString(plan_columns, sep=','),
@@ -125,7 +126,7 @@ ggsave(file.path(plot_dir, "plankategori_fritidsbolig.png"),
 sum(plan_stats$areal_m2[plan_stats$arealformal %in% c(140, 1120,1121, 1122, 1123)])/1000000.0
 
 
-######################################################
+################################################################################
 # Figur 6
 
 plan_stats_tetthet <- plan_stats %>%
@@ -148,7 +149,7 @@ ggsave(file.path(plot_dir, "plankategori_tetthet.png"),
        dpi = 200)
 
 
-######################################################
+################################################################################
 # Figur 7
 plan_stats_fkb$byggyear <- as.factor(as.integer(year(plan_stats_fkb$bygningdatafangstdato)/10)*10)
 
@@ -181,6 +182,41 @@ ggsave(file.path(plot_dir, "plankategori_byggear.png"),
        width = 15.6,
        units = "cm",
        dpi = 200)
+
+
+################################################################################
+# Figur 8
+ggplot(reserve_stats, aes(x=reorder(arealformal,areal_m2,mean),
+                          y=areal_m2/1000.0, fill=plankategori,
+                          weight=areal_m2/1000.0))+
+  geom_boxplot() +
+  scale_y_log10(breaks=c(0.1, 1, 10, 100, 1000, 10000),
+                labels=c("0.1", "1", "10", "100", "1000", "10000")) +
+  #theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  #xlab("Arealformål i kommuneplan") + ylab("Anntall fritidsbolig") +
+  xlab("Arealformål i kommunale planer") +
+  ylab("Areal per planområde i dekar") +
+  theme(legend.position="bottom") +
+  labs(fill = "Plantype")
+ggsave(file.path(plot_dir, "plankategori_omradeareal.png"),
+       height = 8.5,
+       width = 15.6,
+       units = "cm",
+       dpi = 200)
+
+
+# # Følgende figur utgår
+# ggplot(reserve_stats #[reserve_stats$plankategori == "Kommuneplan",]
+#        , aes(fill=as.factor(arealformal), x=areal_m2))+
+#   geom_histogram(bins=75) +
+#   #stat_bin() +
+#   theme(legend.position="bottom") +
+#   scale_x_log10(breaks=c(100,1000,10000,100000,1000000, 10000000)) +
+#   #theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+#   #xlab("Arealformål i kommuneplan") + ylab("Anntall fritidsbolig") +
+#   xlab("Areal i m2 per planområde") + ylab("Antall områder") +
+#   labs(fill = "Arealformål")
+# ggsave(file.path(plot_dir, "plankategori_omradeareal_antall.png"))
 
 
 ################################################################################
@@ -266,6 +302,10 @@ reserve_stats_tetthet_areal <- reserve_stats %>%
             antall_hytter_per_dekar_1st_quart = round(quantile((antall_bygninger / areal_m2)*1000, 0.25), 3),
             antall_hytter_per_dekar_min = round(min((antall_bygninger / areal_m2)*1000), 3)
   ) # add count value to each row
+
+write.csv(reserve_stats_tetthet_areal,
+          "./plots/tabel_3_tabel_2_arealstoerrelser.html.csv",
+          row.names = FALSE)
 
 reserve_stats_tetthet_areal %>% 
   gt()
@@ -394,29 +434,15 @@ sum(reserve_omrader$tomtereserve_daa) / 1000.0
 sum(reserve_omrader %>% st_drop_geometry() %>% filter(plankategori == "Kommuneplan") %>%
       select(tomtereserve_daa)) / 1000.0
 
+
 ################################################################################
-# Summarize after planstatus
+# Summarize over planstatus
 reserve_omrader %>%
   st_drop_geometry() %>%
   filter(tomtereserve_daa > 0) %>%
   group_by(plankategori, planstatus) %>%
   summarize(areal_km2=sum(areal_m2)/1000000.0)
-# df <- reserve_stats %>% 
-#   st_drop_geometry() %>%
-#   filter(tomtereserve_m2 > 0) %>%
-#   mutate(tomtereserve_regulert_daa = ifelse(plankategori == 'Reguleringsplan', tomtereserve_m2, ifelse(is.na(tomtereserve_regulert_m2),0,tomtereserve_regulert_m2/1000.0)),
-#          tomtereserve_uregulert_daa = ifelse(plankategori == 'Reguleringsplan', 0, ifelse(is.na(tomtereserve_regulert_m2), tomtereserve_m2 / 1000.0, (tomtereserve_m2 - tomtereserve_regulert_m2) / 1000.0))) %>%
-#   group_by(plankategori) %>%
-#   summarise(tomtereserve_regulert_km2=sum(as.double(tomtereserve_regulert_daa)/1000.0),
-#             tomtereserve_uregulert_km2=sum(as.double(tomtereserve_uregulert_daa)/1000.0),
-#             tomtereserve_antall_boliger=sum(tomtereserve_antall_boliger))
 
-# reserve_stat_kom <- reserve_stats %>% 
-#   st_drop_geometry() %>%
-#   group_by(kommunenummer) %>% 
-#   summarise(across(names(use_vars), mean))
-
-#reserve_stats <- reserve_omrader
 
 ################################################################################
 # Functions for plots in grid
@@ -674,7 +700,7 @@ df_summary_var <- data.frame(labels=gsub(" i dekar", "", as.vector(unlist(confli
   tab_header(title = "Miljøhensyn rangert etter overlapp med tomtereserve for fritidsbolig") %>% 
   tab_options(column_labels.hidden = TRUE, table.font.size = 10) %>%
   opt_vertical_padding(scale=0.25)
-gtsave(df_summary, filename = "conflict_var_sumary.rtf", path=plot_dir)
+gtsave(df_summary_var, filename = "conflict_var_sumary.rtf", path=plot_dir)
 
 #df_summary <- reserve_stats %>% st_drop_geometry() %>% summarize(across(names(conflict_vars), sum))
 #df_summary <- data.frame(labels=as.vector(names(df_summary)), values=as.vector(unlist(df_summary))/1000000)
@@ -884,40 +910,6 @@ ggplot(reserve_omrader %>%
 #  filter(!is.na(ikrafttredelsesdato) &
 #           tilgjengelig_stor_areal_m2 > 0 &
 #           year(ikrafttredelsesdato) > 1900)
-
-
-######################################################
-# Figur 8
-ggplot(reserve_stats, aes(x=reorder(arealformal,areal_m2,mean),
-                          y=areal_m2/1000.0, fill=plankategori,
-                          weight=areal_m2/1000.0))+
-  geom_boxplot() +
-  scale_y_log10(breaks=c(0.1, 1, 10, 100, 1000, 10000),
-                labels=c("0.1", "1", "10", "100", "1000", "10000")) +
-  #theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  #xlab("Arealformål i kommuneplan") + ylab("Anntall fritidsbolig") +
-  xlab("Arealformål i kommunale planer") +
-  ylab("Areal per planområde i dekar") +
-  theme(legend.position="bottom") +
-  labs(fill = "Plantype")
-ggsave(file.path(plot_dir, "plankategori_omradeareal.png"),
-       height = 8.5,
-       width = 15.6,
-       units = "cm",
-       dpi = 200)
-
-
-ggplot(reserve_stats #[reserve_stats$plankategori == "Kommuneplan",]
-       , aes(fill=as.factor(arealformal), x=areal_m2))+
-  geom_histogram(bins=75) +
-  #stat_bin() +
-  theme(legend.position="bottom") +
-  scale_x_log10(breaks=c(100,1000,10000,100000,1000000, 10000000)) +
-  #theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  #xlab("Arealformål i kommuneplan") + ylab("Anntall fritidsbolig") +
-  xlab("Areal i m2 per planområde") + ylab("Antall områder") +
-  labs(fill = "Arealformål")
-ggsave(file.path(plot_dir, "plankategori_omradeareal_antall.png"))
 
 summary(reserve_stats$areal_m2)
 
