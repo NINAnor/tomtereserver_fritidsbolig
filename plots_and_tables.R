@@ -582,10 +582,13 @@ for(var in names(conflict_vars)) {
                         y=var_kom),
              stat="identity") +
     #xlab("Kommunenummer") +
+    labs(tag="D") +
     theme(axis.text.x = element_text(angle = 90,
                                      vjust = 0.5),
           axis.title.x = element_blank(),
-          axis.title.y = element_blank()) +
+          axis.title.y = element_blank(),
+          plot.tag = element_text(size = rel(1)),
+          plot.tag.position = c(0.95, 0.95)) +
     # scale_y_continuous(labels = ifelse(max(dat[[var]])>1000,
     #                                    label_number(suffix = " K",
     #                                                 scale = 1/1000),
@@ -639,10 +642,13 @@ for(var in names(conflict_vars)) {
                          y=var_kom),
               stat="identity") +
      #xlab("Fylkesnummer") +
+     labs(tag="E") +
      theme(axis.text.x = element_text(angle = 90,
                                       vjust = 0.5),
            axis.title.x = element_blank(),
-           axis.title.y = element_blank()) +
+           axis.title.y = element_blank(),
+           plot.tag = element_text(size = rel(1)),
+           plot.tag.position = c(0.95, 0.95)) +
      # scale_y_continuous(labels = ifelse(max(dat[[var]])>1000,
      #                                    label_number(suffix = " K",
      #                                                 scale = 1/1000),
@@ -815,10 +821,13 @@ for(var in names(continous_vars)) {
                 aes(x=as.factor(navn))
   ) +
     geom_bar(aes_string(x=paste0("reorder(as.factor(navn), 1/",var_kom,")"),fill=var_kom, y=var_kom), stat="identity") +
+    labs(tag="E") +
     #xlab("Kommunenummer") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5),
           axis.title.x = element_blank(),
-          axis.title.y = element_blank()) +
+          axis.title.y = element_blank(),
+          plot.tag = element_text(size = rel(1)),
+          plot.tag.position = c(0.95, 0.95)) +
     scale_fill_continuous(low="white", high=var_color, na.value="white", guide="none", name=conflict_vars[[var]], limits=ylims)
   
   mp3 <- ggplot(data=reserve_fylker) +
@@ -854,10 +863,13 @@ for(var in names(continous_vars)) {
                         fill=var_kom,
                         y=var_kom),
              stat="identity") +
+    labs(tag="E") +
     #xlab("Fylkesnummer") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5),
           axis.title.x = element_blank(),
-          axis.title.y = element_blank()) +
+          axis.title.y = element_blank(),
+          plot.tag = element_text(size = rel(1)),
+          plot.tag.position = c(0.95, 0.95)) +
     scale_fill_continuous(low="white",
                           high=var_color,
                           na.value="white",

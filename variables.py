@@ -294,10 +294,11 @@ CREATE TABLE {ognp.active_schema}."tomtereserve_kommuner" AS SELECT *,
 (SELECT
   CAST(kommunenummer AS smallint),
   navn,
-  ST_Transform(ST_Collect(geom), 4326) AS geom,
+  ST_Collect(geom) AS geom,
   max(samiskforvaltningsomrade) AS samiskforvaltningsomrade,
   sum(landareal_km2) AS landareal_km2,
-  sum(antall_fritidsbolig)::integer AS antall_fritidsbolig
+  sum(antall_fritidsbolig)::integer AS antall_fritidsbolig,
+  max(dekkning_plandata_andel) AS dekkning_plandata_andel
 FROM {ognp.active_schema}."kommuner"
 GROUP BY kommunenummer, navn) AS a LEFT JOIN
 (SELECT
@@ -325,10 +326,15 @@ ognp.run_maintenance("tomtereserve_kommuner", [("geom", "gist", True), ("kommune
 agg_sql = "".join(agg_sql_list).rstrip(",\n")
 agg_sql = f"""DROP TABLE IF EXISTS {ognp.active_schema}."tomtereserve_fylker";
 CREATE TABLE {ognp.active_schema}."tomtereserve_fylker" AS SELECT * FROM
-(SELECT fylkesnummer, navn, geom, sum(y.landareal_km2) AS landareal_km2, sum(y.antall_fritidsbolig)::integer AS antall_fritidsbolig
+(SELECT fylkesnummer, navn, geom, sum(y.landareal_km2) AS landareal_km2,
+max(y.dekkning_plandata_andel) AS dekkning_plandata_andel,
+sum(y.antall_fritidsbolig)::integer AS antall_fritidsbolig
 FROM
 (SELECT CAST(fylkesnummer AS smallint), navn, geom, samiskforvaltningsomrade FROM {ognp.active_schema}."fylker") AS x LEFT JOIN
-(SELECT CAST(kommunenummer::smallint / 100 AS smallint) AS fylkesnummer, CASE WHEN plankategorier LIKE '%Kommuneplan%' THEN landareal_km2 ELSE 0::integer END AS landareal_km2, antall_fritidsbolig FROM {ognp.active_schema}."tomtereserve_kommuner") AS y
+(SELECT CAST(kommunenummer::smallint / 100 AS smallint) AS fylkesnummer,
+CASE WHEN plankategorier LIKE '%Kommuneplan%' THEN landareal_km2 ELSE 0::integer END AS landareal_km2,
+antall_fritidsbolig,
+dekkning_plandata_andel FROM {ognp.active_schema}."tomtereserve_kommuner") AS y
 USING (fylkesnummer) GROUP BY fylkesnummer, geom, navn
 ) AS a LEFT JOIN
 (SELECT CAST(kommunenummer_aktuell / 100 AS smallint) AS fylkesnummer,
@@ -390,6 +396,7 @@ CREATE TABLE {ognp.active_schema}."tomtereserve_kommuner_shiny" AS SELECT *,
   ST_Y(ST_Transform(ST_Centroid(ST_Collect(geom)), 4326)) AS latitude,
   max(samiskforvaltningsomrade) AS samiskforvaltningsomrade,
   sum(landareal_km2) AS landareal_km2,
+  max(dekkning_plandata_andel) AS dekkning_plandata_andel,
   sum(antall_fritidsbolig)::integer AS antall_fritidsbolig
 FROM {ognp.active_schema}."kommuner"
 GROUP BY kommunenummer, navn) AS a LEFT JOIN
@@ -423,6 +430,7 @@ CREATE TABLE {ognp.active_schema}."tomtereserve_fylker_shiny" AS SELECT * FROM
     ST_X(ST_Transform(ST_Centroid(geom), 4326)) AS longitude,
     ST_Y(ST_Transform(ST_Centroid(geom), 4326)) AS latitude,
 sum(y.landareal_km2) AS landareal_km2,
+max(y.dekkning_plandata_andel) AS dekkning_plandata_andel,
 sum(y.antall_fritidsbolig)::integer AS antall_fritidsbolig,
 avg(andel_fritidsboligomrader) AS andel_fritidsboligomrader_avg
 FROM
@@ -431,7 +439,8 @@ FROM
 andel_fritidsboligomrader,
 CASE
   WHEN plankategorier LIKE '%Kommuneplan%' THEN landareal_km2 ELSE 0::integer
-END AS landareal_km2, antall_fritidsbolig FROM {ognp.active_schema}."tomtereserve_kommuner") AS y
+END AS landareal_km2,
+dekkning_plandata_andel, antall_fritidsbolig FROM {ognp.active_schema}."tomtereserve_kommuner") AS y
 USING (fylkesnummer) GROUP BY fylkesnummer, geom, navn
 ) AS a LEFT JOIN
 (SELECT CAST(kommunenummer_aktuell / 100 AS smallint) AS fylkesnummer,

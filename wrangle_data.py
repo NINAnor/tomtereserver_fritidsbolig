@@ -718,6 +718,10 @@ geom = CASE WHEN ST_IsValid(wkb_geometry) THEN wkb_geometry ELSE ST_MakeValid(wk
 
 ognp.run_maintenance(vector_map, [("geom", "gist", True), ("geom_isvalid", "btree", False), ("fractal_dimension_pg", "btree", False), ("compactness_pg", "btree", False)])
 
+
+with ognp.connection.cursor() as cur:
+    cur.execute(f"""SELECT sum(areal_m2), kommunenummer FROM "{ognp.active_schema}"."{planformalomrader}" GROUP BY kommunenummer;""")
+
 with ognp.connection.cursor() as cur:
     cur.execute(f"""DROP TABLE IF EXISTS "{ognp.active_schema}"."{planformalomrader}" CASCADE;
 CREATE TABLE "{ognp.active_schema}"."{planformalomrader}" AS SELECT
@@ -795,6 +799,13 @@ informasjon
 ognp.run_maintenance(planformalomrader, [("geom", "gist", True), ("poid", "btree", False), ("kommunenummer", "btree", False), ("arealformal", "btree", False)])
 
 columns = ", ".join(["y.{}".format(c) for c in ognp.get_column_names(planformalomrader)])
+
+with ognp.connection.cursor() as cur:
+    cur.execute(f"""ALTER TABLE "{ognp.active_schema}".kommuner ADD COLUMN IF NOT EXISTS dekkning_plandata_andel smallint;
+    UPDATE "{ognp.active_schema}".kommuner SET dekkning_plandata_andel = CAST(dekkning_plandata_perc AS smallint) FROM (SELECT a.kommunenummer AS kid, round((((b.areal_m2 / 1000000.0) / a.landareal_km2)*100.0)::numeric, 0) AS dekkning_plandata_perc FROM
+    (SELECT kommunenummer, sum(landareal_km2) AS landareal_km2 FROM "{ognp.active_schema}".kommuner GROUP BY kommunenummer) AS a LEFT JOIN
+    (SELECT sum(areal_m2) AS areal_m2, kommunenummer FROM "{ognp.active_schema}"."{planformalomrader}" GROUP BY kommunenummer) AS b USING (kommunenummer)) AS x WHERE x.kid = kommunenummer;""")
+
 
 # By planomrade
 with ognp.connection.cursor() as cur:
