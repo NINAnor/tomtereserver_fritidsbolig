@@ -691,8 +691,7 @@ FROM
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Topologically clean municipal planning data
 kp_samlet = "kommuneplaner_samlet"
-# from .clean import topo_clean_sort
-subprocess.run(["python3", "clean.py"])
+subprocess.run(["python3", "clean_planning_data.py"])
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -1065,6 +1064,9 @@ with ognp.connection.cursor() as cur:
     cur.execute(f"""ALTER TABLE "{ognp.active_schema}"."{fritidsboligformal}" ADD COLUMN IF NOT EXISTS {column} integer;""")
     cur.execute(f"""UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = 0;
 UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = CASE
+  WHEN areal_m2 <= 2000 AND CAST((tomtereserve_m2 * 1.0) / 1000.0 AS integer) = 0 AND
+       (antall_bygninger::double precision / (areal_m2 / 1000.0)) <= 0.5 THEN CAST(round(((areal_m2 * (1.0 + antall_bygninger)) / 1000.0)::numeric, 0) AS integer)
+  WHEN areal_m2 <= 2000 THEN CAST((tomtereserve_m2 * 1.0) / 1000.0 AS integer)
   WHEN areal_m2 <= 2000 THEN CAST((tomtereserve_m2 * 1.0) / 1000.0 AS integer)
   WHEN areal_m2 > 50000 THEN CAST((tomtereserve_m2 * 0.5) / 1000.0 AS integer)
   ELSE CAST((tomtereserve_m2 * 0.75) / 1000.0 AS integer)
@@ -1448,57 +1450,23 @@ with ognp.connection.cursor() as cur:
 
 
 # By cabin
-planformalomrader = "reguleringsplaner_rpomrader_samlet"
-kp_samlet = "kommuneplaner_samlet"
-
 with ognp.connection.cursor() as cur:
     cur.execute(f"""DROP TABLE IF EXISTS "{ognp.active_schema}"."fritidsbygg_vs_plan_alle";
 CREATE TABLE "{ognp.active_schema}"."fritidsbygg_vs_plan_alle" AS SELECT
-y.kommunenummer
+y.*
 , x.gid AS bygningsid
 , x.bygningstype
 , x.bygningsstatus
 , x.centroid AS bygningcentroid
 , x.datafangstdato AS bygningdatafangstdato
-, y.kommunenummer || '_' || y.planidentifikasjon || '_' || y.vertikalniva AS reguleringsplan_id
-, y.omrade AS reguleringsplan_omrade
-, y.arealformal_tekst AS reguleringsplan_arealformal
-, y.ikrafttredelsesdato AS reguleringsplan_ikrafttredelsesdato
-, y.vedtakendeligplandato AS reguleringsplan_vedtakendeligplandato
-, y.plannavn AS reguleringsplan_plannavn
-, y.beskrivelse AS reguleringsplan_beskrivelse
-, y.utnyttingstall AS reguleringsplan_utnyttingstall
-, y.utnyttingstall_minimum AS reguleringsplan_utnyttingstall_minimum
-, y.plantype AS reguleringsplan_plantype
-, y.planstatus_tekst AS reguleringsplan_planststus
-, y.vertikalniva AS reguleringsplan_vertikalniva
-, y.lovreferanse AS reguleringsplan_lovreferanse
-, k.gid AS kommuneplan_id
-, k.arealformål AS kommuneplan_arealformal
-, k.arealbruksstatus AS kommuneplan_arealbruksstatus
-, k.objekttypenavn AS kommuneplan_objekttypenavn
-, k.områdeid AS kommuneplan_omradeid
-, k.områdenavn AS kommuneplan_omradenavn
-, k.planidentifikasjon
-, k.geom AS kommuneplan_omrade
-, k.planomrade
-, k.plannavn
-, k.plantype
-, k.planstatus
-, k.planbestemmelse
-, k.ikrafttredelsesdato AS kommuneplan_ikrafttredelsesdato
-, k.vedtakendeligplandato
-, k.lovreferansetype
-, k.opprinneligadministrativenhet
-FROM "{ognp.active_schema}"."{fritidsbygg}" AS x LEFT JOIN "{ognp.active_schema}"."{planformalomrader}" AS y ON ST_DWithin(y.omrade, x.centroid, 0) LEFT JOIN "{ognp.active_schema}"."{kp_samlet}" AS k ON ST_DWithin(k.geom, x.centroid, 0);""")
+FROM
+  "{ognp.active_schema}"."{fritidsbygg}" AS x LEFT JOIN
+  "{ognp.active_schema}"."{planformalomrader}" AS y ON ST_DWithin(y.geom, x.centroid, 0);""")
 
 ognp.run_maintenance("fritidsbygg_vs_plan_alle", [
     ("bygningcentroid", "GIST", False),
-    ("reguleringsplan_omrade", "GIST", False),
-    ("kommuneplan_omrade", "GIST", False),
     ("kommunenummer", "btree", True),
-    ("reguleringsplan_arealformal", "btree", False),
-    ("kommuneplan_arealformal", "btree", False),
+    ("arealformal", "btree", False),
     ])
 
 
