@@ -292,13 +292,14 @@ CREATE TABLE {ognp.active_schema}."tomtereserve_kommuner" AS SELECT *,
  (areal_fritidsbolig_formal_daa::double precision /1000.0) / landareal_km2 AS andel_fritidsboligomrader
  FROM
 (SELECT
-  CAST(kommunenummer AS smallint)
-  , navn
-  , geom
-  , samiskforvaltningsomrade
-  , landareal_km2
-  , antall_fritidsbolig::integer
-FROM {ognp.active_schema}."kommuner") AS a LEFT JOIN
+  CAST(kommunenummer AS smallint),
+  navn,
+  ST_Transform(ST_Collect(geom), 4326) AS geom,
+  max(samiskforvaltningsomrade) AS samiskforvaltningsomrade,
+  sum(landareal_km2) AS landareal_km2,
+  sum(antall_fritidsbolig)::integer AS antall_fritidsbolig
+FROM {ognp.active_schema}."kommuner"
+GROUP BY kommunenummer, navn) AS a LEFT JOIN
 (SELECT
   kommunenummer_aktuell AS kommunenummer
   , array_to_string(array_agg(DISTINCT plankategori), '/') AS plankategorier
@@ -384,13 +385,14 @@ CREATE TABLE {ognp.active_schema}."tomtereserve_kommuner_shiny" AS SELECT *,
  (areal_fritidsbolig_formal_daa::double precision / 1000.0) / landareal_km2 AS andel_fritidsboligomrader
  FROM
 (SELECT CAST(kommunenummer AS smallint) AS fid, navn,
-  CAST(kommunenummer AS smallint), ST_Transform(geom, 4326) AS geom,
-  ST_X(ST_Transform(ST_Centroid(geom), 4326)) AS longitude,
-  ST_Y(ST_Transform(ST_Centroid(geom), 4326)) AS latitude,
-  samiskforvaltningsomrade,
-  landareal_km2,
-  antall_fritidsbolig::integer
-FROM {ognp.active_schema}."kommuner") AS a LEFT JOIN
+  CAST(kommunenummer AS smallint), ST_Transform(ST_Collect(geom), 4326) AS geom,
+  ST_X(ST_Transform(ST_Centroid(ST_Collect(geom)), 4326)) AS longitude,
+  ST_Y(ST_Transform(ST_Centroid(ST_Collect(geom)), 4326)) AS latitude,
+  max(samiskforvaltningsomrade) AS samiskforvaltningsomrade,
+  sum(landareal_km2) AS landareal_km2,
+  sum(antall_fritidsbolig)::integer AS antall_fritidsbolig
+FROM {ognp.active_schema}."kommuner"
+GROUP BY kommunenummer, navn) AS a LEFT JOIN
 (SELECT kommunenummer_aktuell AS kommunenummer
 , array_to_string(array_agg(DISTINCT plankategori), '/') AS plankategorier
 , sum(areal_m2) / 1000.0 AS areal_fritidsbolig_formal_daa

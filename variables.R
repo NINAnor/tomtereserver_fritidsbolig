@@ -8,7 +8,10 @@ plot_dir <- file.path(workdir, "plots")
 
 schema <- "tomtereserver_fritidsbolig"
 #table <- "fritidsbygg_vs_plan_alle"
+
 table_plans <- "plan_og_fritidsbygg"
+table_plans_fkb <- "fritidsbygg_vs_plan_alle"
+
 table_reserve <- "fritidsboligformal"
 
 # columns <- dbListFields(con, name=Id(schema=schema, table = table_reserve))
