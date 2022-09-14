@@ -294,7 +294,7 @@ CREATE TABLE {ognp.active_schema}."tomtereserve_kommuner" AS SELECT *,
 (SELECT
   CAST(kommunenummer AS smallint),
   navn,
-  ST_Collect(geom) AS geom,
+  ST_CollectionExtract(ST_Collect(geom), 3) AS geom,
   max(samiskforvaltningsomrade) AS samiskforvaltningsomrade,
   sum(landareal_km2) AS landareal_km2,
   sum(antall_fritidsbolig)::integer AS antall_fritidsbolig,
@@ -391,7 +391,7 @@ CREATE TABLE {ognp.active_schema}."tomtereserve_kommuner_shiny" AS SELECT *,
  (areal_fritidsbolig_formal_daa::double precision / 1000.0) / landareal_km2 AS andel_fritidsboligomrader
  FROM
 (SELECT CAST(kommunenummer AS smallint) AS fid, navn,
-  CAST(kommunenummer AS smallint), ST_Transform(ST_Collect(geom), 4326) AS geom,
+  CAST(kommunenummer AS smallint), ST_CollectionExtract(ST_Transform(ST_Collect(geom), 4326),3) AS geom,
   ST_X(ST_Transform(ST_Centroid(ST_Collect(geom)), 4326)) AS longitude,
   ST_Y(ST_Transform(ST_Centroid(ST_Collect(geom)), 4326)) AS latitude,
   max(samiskforvaltningsomrade) AS samiskforvaltningsomrade,
