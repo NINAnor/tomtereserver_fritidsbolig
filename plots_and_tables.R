@@ -735,6 +735,9 @@ for(var in names(continous_vars)) {
     #mutate(var_rank=rank(.data[[var]]),
     #       var_daa=(.data[[var]]/1000),
     #       var_log=ifelse(.data[[var]]==0,0,log(.data[[var]])))
+  if (grepl("befolkning", var, fixed = TRUE)) {
+    dat[[var]] <- dat[[var]] / 1000.0
+  }
   breaks <- c(0,
               mean(ifelse(is.na(dat[[var]]), 0, dat[[var]])),
               max(dat[[var]]))
@@ -821,7 +824,7 @@ for(var in names(continous_vars)) {
                 aes(x=as.factor(navn))
   ) +
     geom_bar(aes_string(x=paste0("reorder(as.factor(navn), 1/",var_kom,")"),fill=var_kom, y=var_kom), stat="identity") +
-    labs(tag="E") +
+    labs(tag="D") +
     #xlab("Kommunenummer") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5),
           axis.title.x = element_blank(),
