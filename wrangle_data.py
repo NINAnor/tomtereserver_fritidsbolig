@@ -383,7 +383,11 @@ with ognp.connection.cursor() as cur:
     if column not in ognp.get_column_names("kommuner"):
         cur.execute(f"""ALTER TABLE "{ognp.active_schema}"."kommuner" ADD COLUMN IF NOT EXISTS {column} double precision;""")
     cur.execute(f"""UPDATE "{ognp.active_schema}"."kommuner" SET {column} = CASE WHEN x.areal IS NULL THEN ST_Area(geom) ELSE (ST_Area(geom) - x.areal) END / 1000000.0 FROM
-                 (SELECT a.gid AS id, sum(ST_Area(ST_MakeValid(ST_Intersection(a.geom, b.geom)))) AS areal FROM "{ognp.active_schema}"."kommuner" AS a, "{ognp.active_schema}"."n50_arealdekke_omrade" AS b WHERE ST_Intersects(a.geom, b.geom) AND b."objtype" IN ('Innsjø', 'Hav', 'ElvBekk') GROUP BY a.gid) AS x WHERE gid = x.id""")
+                 (SELECT a.kommunenummer AS kn, sum(ST_Area(ST_MakeValid(ST_Intersection(a.geom, b.geom)))) AS areal
+		 FROM "{ognp.active_schema}"."kommuner" AS a,
+		 "{ognp.active_schema}"."n50_arealdekke_omrade" AS b
+		 WHERE ST_Intersects(a.geom, b.geom) AND b."objtype" IN ('Innsjø', 'Hav', 'ElvBekk')
+		 GROUP BY a.kommunenummer) AS x WHERE kommunenummer = x.kn""")
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -874,7 +878,7 @@ with ognp.connection.cursor() as cur:
 with ognp.connection.cursor() as cur:
     cur.execute(f"""ALTER TABLE "{ognp.active_schema}"."{fritidsboligformal}" ADD COLUMN IF NOT EXISTS kommune_landareal_km2 double precision;""")
     cur.execute(f"""UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET kommune_landareal_km2 = landareal_km2 FROM
-                 (SELECT CAST(kommunenummer AS integer) AS kna, sum(landareal_km2) AS landareal_km2 FROM "{ognp.active_schema}"."kommuner"
+                 (SELECT CAST(kommunenummer AS integer) AS kna, first(landareal_km2) AS landareal_km2 FROM "{ognp.active_schema}"."kommuner"
                  GROUP BY kna) AS x WHERE kommunenummer_aktuell = kna""")
 
 
