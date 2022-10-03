@@ -1,36 +1,17 @@
 #!/bin/bash
 base_dir=/data/scratch
 export_dir=${base_dir}/export_gis
-rm -rf $export_dir
-if [ ! -d $export_dir ] ; then
-  mkdir $export_dir
-fi
+postgres="PG:host=gisdata-db.nina.no dbname=gisdata user=trond.simensen"
+schema="tomtereserver_fritidsbolig"
 
-output_file=${export_dir}/tomtereserver_fritidsbolig.gpkg
-if [ -f "$output_file" ] ; then
-  rm "$output_file"
-fi
+rm -rf "$export_dir"
+mkdir -p "$export_dir"
+cd "$export_dir"
 
-ogr2ogr -progress -overwrite -f GPKG -geomfield geom -nln formalsomrader "$output_file" "PG:host=gisdata-db.nina.no dbname=gisdata user=trond.simensen" tomtereserver_fritidsbolig.tomtereserve_formalsomrader
-ogr2ogr -progress -update -f GPKG -geomfield geom -nln kommuner "$output_file" "PG:host=gisdata-db.nina.no dbname=gisdata user=trond.simensen" tomtereserver_fritidsbolig.tomtereserve_kommuner_megan
-ogr2ogr -progress  -update -f GPKG -geomfield geom -nln fylker "$output_file" "PG:host=gisdata-db.nina.no dbname=gisdata user=trond.simensen" tomtereserver_fritidsbolig.tomtereserve_fylker
+for param in formalsomrader kommuner fylker; do
+  for output in tomtereserver_fritidsbolig{,_$param}; do
+    ogr2ogr -progress -overwrite -f GPKG -geomfield geom -nln "$param" "${output}.gpkg" "$postgres" "${schema}.${output}"
+  done
+done
 
-output_file=${export_dir}/tomtereserver_fritidsbolig_formalsomrader.gpkg
-if [ -f "$output_file" ] ; then
-  rm "$output_file"
-fi
-ogr2ogr -progress -overwrite -f GPKG -geomfield geom -nln formalsomrader "$output_file" "PG:host=gisdata-db.nina.no dbname=gisdata user=trond.simensen" tomtereserver_fritidsbolig.tomtereserve_formalsomrader
-
-output_file=${export_dir}/tomtereserver_fritidsbolig_kommuner.gpkg
-if [ -f "$output_file" ] ; then
-  rm "$output_file"
-fi
-ogr2ogr -progress -overwrite -f GPKG -geomfield geom -nln kommuner "$output_file" "PG:host=gisdata-db.nina.no dbname=gisdata user=trond.simensen" tomtereserver_fritidsbolig.tomtereserve_kommuner_megan
-
-output_file=${export_dir}/tomtereserver_fritidsbolig_fylker.gpkg
-if [ -f "$output_file" ] ; then
-  rm "$output_file"
-fi
-ogr2ogr -progress -overwrite -f GPKG -geomfield geom -nln fylker "$output_file" "PG:host=gisdata-db.nina.no dbname=gisdata user=trond.simensen" tomtereserver_fritidsbolig.tomtereserve_fylker
-
-cp -r $export_dir /data/P-Prosjekter/15227000_kartlegging_av_tomtereserve_for_fritidsbebyggels/
+cp -r "$export_dir" /data/P-Prosjekter/15227000_kartlegging_av_tomtereserve_for_fritidsbebyggels/
