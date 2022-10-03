@@ -8,7 +8,7 @@ pg_host = "gisdata-db.nina.no"
 pg_db = "gisdata"
 #pg_user = Sys.getenv("LOGNAME")
 
-if sys.platform == "win32":
+if sys.platform != "win32":
     workdir = Path(
         "/data/P-Prosjekter/15227000_kartlegging_av_tomtereserve_for_fritidsbebyggels/"
     )
