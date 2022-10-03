@@ -1,4 +1,6 @@
 #!/bin/bash
+set -uexo pipefail
+
 base_dir=/data/scratch
 export_dir=${base_dir}/export_gis
 rm -rf $export_dir
