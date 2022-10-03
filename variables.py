@@ -1,18 +1,30 @@
 from pathlib import Path
+import sys
+
+from osgeonorge.postgis import PostGISAdapter
+
 # Set connection parameters
 pg_host = "gisdata-db.nina.no"
 pg_db = "gisdata"
 #pg_user = Sys.getenv("LOGNAME")
 
-workdir = Path(
-    "/data/P-Prosjekter/15227000_kartlegging_av_tomtereserve_for_fritidsbebyggels/"
-)
+if sys.platform == "win32":
+    workdir = Path(
+        "/data/P-Prosjekter/15227000_kartlegging_av_tomtereserve_for_fritidsbebyggels/"
+    )
+else:
+    workdir = Path(
+        "P:/15227000_kartlegging_av_tomtereserve_for_fritidsbebyggels/"
+    )
+
 plot_dir = workdir.joinpath("plots")
 
 schema = "tomtereserver_fritidsbolig"
 # table = "fritidsbygg_vs_plan_alle"
 table_plans = "plan_og_fritidsbygg"
 table_reserve = "fritidsbygg_formal"
+
+ognp = PostGISAdapter(host="gisdata-db.nina.no", db_name="gisdata", user=os.getlogin(), active_schema=schema, cores=5, password=pw)
 
 # columns = dbListFields(con, name=Id(schema=schema, table = table_reserve))
 # columns = columns[!columns %in% {"geom", "bygningcentroid")]
@@ -249,8 +261,8 @@ analysis_variables = {
 }
 
 sql = f"""SELECT
-percentile_cont(0.5) WITHIN GROUP (ORDER BY andel_fritidsboligomrader),
-percentile_cont(0.5) WITHIN GROUP (ORDER BY andel_tomtereserve)
+avg(andel_fritidsboligomrader),
+avg(andel_tomtereserve)
 FROM
 (SELECT
 kommunenummer_aktuell
@@ -312,7 +324,7 @@ with ognp.connection.cursor() as cur:
     cur.execute(agg_sql)
 
 sql = f"""ALTER TABLE {ognp.active_schema}."tomtereserve_kommuner" ADD COLUMN IF NOT EXISTS tomtereserve_estimert_daa_sum double precision;
-UPDATE {ognp.active_schema}."tomtereserve_kommuner_shiny" SET tomtereserve_estimert_daa_sum = 0;
+UPDATE {ognp.active_schema}."tomtereserve_kommuner" SET tomtereserve_estimert_daa_sum = 0;
 UPDATE {ognp.active_schema}."tomtereserve_kommuner" SET tomtereserve_estimert_daa_sum = CASE
   WHEN plankategorier IS NULL THEN landareal_km2 * {medians[1]}
   WHEN plankategorier NOT LIKE '%Kommuneplan%' THEN (landareal_km2 * {medians[1]}) - (tomtereserve_regulert_daa_sum / 1000.0)
