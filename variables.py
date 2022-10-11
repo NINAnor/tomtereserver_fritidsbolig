@@ -1,5 +1,8 @@
-from pathlib import Path
+import numpy as np
+import scipy.stats as st
 import sys
+
+from pathlib import Path
 
 from osgeonorge.postgis import PostGISAdapter
 
@@ -261,10 +264,6 @@ analysis_variables = {
 }
 
 sql = f"""SELECT
-avg(andel_fritidsboligomrader),
-avg(andel_tomtereserve)
-FROM
-(SELECT
 kommunenummer_aktuell
 , areal_km2 / kommune_landareal_km2 AS andel_fritidsboligomrader
 , tomtereserve_km2 / kommune_landareal_km2 AS andel_tomtereserve
@@ -284,10 +283,17 @@ kommunenummer_aktuell
 FROM {ognp.active_schema}."fritidsboligformal"
 ) AS a
 GROUP BY kommunenummer_aktuell) AS b
-WHERE plankategorier LIKE '%Kommuneplan%') AS c;"""
+WHERE plankategorier LIKE '%Kommuneplan%';"""
 with ognp.connection.cursor() as cur:
     cur.execute(sql)
-    medians = cur.fetchone()
+    # numpy array with three columns 
+    tomtereserve_kommuner_stats = np.array(cur.fetchall())
+
+col_stats = {}
+# for db_col in [0,1]:
+kom_reserve_stats = {"conf_ints": st.norm.interval(alpha=0.95, loc=np.mean(tomtereserve_kommuner_stats[:, 1]), scale=st.sem(tomtereserve_kommuner_stats[:, 1])),
+                              "mean": np.mean(tomtereserve_kommuner_stats[:, 1])
+                              }
 
 
 rescale_sql_list = []
@@ -323,13 +329,45 @@ GROUP BY kommunenummer_aktuell) AS b USING (kommunenummer);"""
 with ognp.connection.cursor() as cur:
     cur.execute(agg_sql)
 
+# Mean
 sql = f"""ALTER TABLE {ognp.active_schema}."tomtereserve_kommuner" ADD COLUMN IF NOT EXISTS tomtereserve_estimert_daa_sum double precision;
 UPDATE {ognp.active_schema}."tomtereserve_kommuner" SET tomtereserve_estimert_daa_sum = 0;
 UPDATE {ognp.active_schema}."tomtereserve_kommuner" SET tomtereserve_estimert_daa_sum = CASE
-  WHEN plankategorier IS NULL THEN landareal_km2 * {medians[1]}
-  WHEN plankategorier NOT LIKE '%Kommuneplan%' THEN (landareal_km2 * {medians[1]}) - (tomtereserve_regulert_daa_sum / 1000.0)
+  WHEN plankategorier IS NULL THEN landareal_km2 * {kom_reserve_stats["mean"]}
+  WHEN plankategorier NOT LIKE '%Kommuneplan%' THEN (landareal_km2 * {kom_reserve_stats["mean"]}) - (tomtereserve_regulert_daa_sum / 1000.0)
 END * 1000.0
 WHERE plankategorier IS NULL OR plankategorier NOT LIKE '%Kommuneplan%';"""
+with ognp.connection.cursor() as cur:
+    cur.execute(sql)
+
+# 5% confidence intervals
+sql = f"""ALTER TABLE {ognp.active_schema}."tomtereserve_kommuner" ADD COLUMN IF NOT EXISTS tomtereserve_estimert_daa_sum_conf_05 double precision;
+UPDATE {ognp.active_schema}."tomtereserve_kommuner" SET tomtereserve_estimert_daa_sum_conf_05 = 0;
+UPDATE {ognp.active_schema}."tomtereserve_kommuner" SET tomtereserve_estimert_daa_sum_conf_05 = CASE
+  WHEN plankategorier IS NULL THEN landareal_km2 * {kom_reserve_stats["mean"] + kom_reserve_stats['conf_ints'][0]}
+  WHEN plankategorier NOT LIKE '%Kommuneplan%' THEN 
+    CASE WHEN ({kom_reserve_stats["mean"] + kom_reserve_stats['conf_ints'][0]} - (tomtereserve_regulert_daa_sum / 1000.0) < 0 THEN 0
+    ELSE (landareal_km2 * {kom_reserve_stats["mean"] + kom_reserve_stats['conf_ints'][0]}) - (tomtereserve_regulert_daa_sum / 1000.0)
+    END
+END * 1000.0
+WHERE plankategorier IS NULL OR plankategorier NOT LIKE '%Kommuneplan%';"""
+with ognp.connection.cursor() as cur:
+    cur.execute(sql)
+
+# 95% confidence intervals
+sql = f"""ALTER TABLE {ognp.active_schema}."tomtereserve_kommuner" ADD COLUMN IF NOT EXISTS tomtereserve_estimert_daa_sum_conf_05 double precision;
+UPDATE {ognp.active_schema}."tomtereserve_kommuner" SET tomtereserve_estimert_daa_sum_conf_95 = 0;
+UPDATE {ognp.active_schema}."tomtereserve_kommuner" SET tomtereserve_estimert_daa_sum_conf_95 = CASE
+  WHEN plankategorier IS NULL THEN landareal_km2 * {kom_reserve_stats["mean"] + kom_reserve_stats['conf_ints'][1]}
+  WHEN plankategorier NOT LIKE '%Kommuneplan%' THEN 
+    CASE WHEN ({kom_reserve_stats["mean"] + kom_reserve_stats['conf_ints'][1]} - (tomtereserve_regulert_daa_sum / 1000.0) < 0 THEN 0
+    ELSE (landareal_km2 * {kom_reserve_stats["mean"] + kom_reserve_stats['conf_ints'][1]}) - (tomtereserve_regulert_daa_sum / 1000.0)
+    END
+END * 1000.0
+WHERE plankategorier IS NULL OR plankategorier NOT LIKE '%Kommuneplan%';"""
+with ognp.connection.cursor() as cur:
+    cur.execute(sql)
+
 with ognp.connection.cursor() as cur:
     cur.execute(sql)
 
