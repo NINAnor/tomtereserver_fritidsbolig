@@ -1,5 +1,8 @@
 import os
 import psycopg2
+import numpy as np
+import scipy.stats as st
+
 from subprocess import run, Popen, PIPE, DEVNULL
 from psycopg2.extras import RealDictCursor
 #from osgeonorge.geonorge import list_feeds, atom_url, parse_feed, download_geonorge
@@ -1071,18 +1074,66 @@ UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = round(x.area
 
 
 with ognp.connection.cursor() as cur:
+    cur.execute(f"""SELECT (antall_bygninger / areal_m2) * 1000.0 FROM 
+    "{ognp.active_schema}"."{fritidsboligformal}"
+    WHERE antall_bygninger > 0 AND tomtereserve_m2 = 0;""")
+    hytte_tetthet_all = np.array(cur.fetchall())
+
+dat = hytte_tetthet_all[np.where(hytte_tetthet_all <= 2000)]
+hytte_tetthet = {"liten": {"conf_ints": st.norm.interval(alpha=0.95, loc=np.mean(dat), scale=st.sem(dat)),
+                              "mean": np.mean(dat)
+                              }}
+dat = hytte_tetthet_all[np.where((hytte_tetthet_all > 2000) & (hytte_tetthet_all <= 50000))]
+hytte_tetthet["middels"] = {"conf_ints": st.norm.interval(alpha=0.95, loc=np.mean(dat), scale=st.sem(dat)),
+                              "mean": np.mean(dat)
+                              }
+dat = hytte_tetthet_all[np.where(hytte_tetthet_all > 50000)]
+hytte_tetthet["stor"] = {"conf_ints": st.norm.interval(alpha=0.95, loc=np.mean(dat), scale=st.sem(dat)),
+                              "mean": np.mean(dat)
+                              }
+dat = hytte_tetthet_all
+hytte_tetthet["all"] = {"conf_ints": st.norm.interval(alpha=0.95, loc=np.mean(dat), scale=st.sem(dat)),
+                              "mean": np.mean(dat)
+                              }
+
+with ognp.connection.cursor() as cur:
     column = "tomtereserve_antall_boliger"
     cur.execute(f"""ALTER TABLE "{ognp.active_schema}"."{fritidsboligformal}" ADD COLUMN IF NOT EXISTS {column} integer;""")
     cur.execute(f"""UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = 0;
 UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = CASE
-  WHEN areal_m2 <= 2000 AND CAST((tomtereserve_m2 * 1.0) / 1000.0 AS integer) = 0 AND
-       (antall_bygninger::double precision / (areal_m2 / 1000.0)) <= 0.5 THEN CAST(round(((areal_m2 * (1.0 + antall_bygninger)) / 1000.0)::numeric, 0) AS integer)
-  WHEN areal_m2 <= 2000 THEN CAST((tomtereserve_m2 * 1.0) / 1000.0 AS integer)
-  WHEN areal_m2 <= 2000 THEN CAST((tomtereserve_m2 * 1.0) / 1000.0 AS integer)
-  WHEN areal_m2 > 50000 THEN CAST((tomtereserve_m2 * 0.5) / 1000.0 AS integer)
-  ELSE CAST((tomtereserve_m2 * 0.75) / 1000.0 AS integer)
+  WHEN areal_m2 <= 2000 AND tomtereserve_m2 = 0 AND (antall_bygninger::double precision / (areal_m2 / 1000.0)) <= {hytte_tetthet["liten"]["mean"]}
+       THEN max(0, ((areal_m2 * {hytte_tetthet["liten"]["mean"]} / 1000.0) - antall_bygninger))
+  WHEN areal_m2 <= 2000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["liten"]["mean"]}) / 1000.0 AS integer)
+  WHEN areal_m2 > 50000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["stor"]["mean"]}) / 1000.0 AS integer)
+  ELSE CAST((tomtereserve_m2 * {hytte_tetthet["stor"]["mean"]}) / 1000.0 AS integer)
 END::integer
-WHERE tomtereserve_m2 > 0;""")
+WHERE tomtereserve_m2 > 0 OR areal_m2 <= 2000;""")
+
+with ognp.connection.cursor() as cur:
+    column = "tomtereserve_antall_boliger_conf_05"
+    cur.execute(f"""ALTER TABLE "{ognp.active_schema}"."{fritidsboligformal}" ADD COLUMN IF NOT EXISTS {column} integer;""")
+    cur.execute(f"""UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = 0;
+UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = CASE
+  WHEN areal_m2 <= 2000 AND tomtereserve_m2 = 0 AND (antall_bygninger::double precision / (areal_m2 / 1000.0)) <= {hytte_tetthet["liten"]["mean"]}
+       THEN max(0, ((areal_m2 * {hytte_tetthet["liten"]["conf_ints"][0]} / 1000.0) - antall_bygninger))
+  WHEN areal_m2 <= 2000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["liten"]["conf_ints"][0]}) / 1000.0 AS integer)
+  WHEN areal_m2 > 50000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["stor"]["conf_ints"][0]}) / 1000.0 AS integer)
+  ELSE CAST((tomtereserve_m2 * {hytte_tetthet["stor"]["conf_ints"][0]}) / 1000.0 AS integer)
+END::integer
+WHERE tomtereserve_m2 > 0 OR areal_m2 <= 2000;""")
+
+with ognp.connection.cursor() as cur:
+    column = "tomtereserve_antall_boliger_conf_95"
+    cur.execute(f"""ALTER TABLE "{ognp.active_schema}"."{fritidsboligformal}" ADD COLUMN IF NOT EXISTS {column} integer;""")
+    cur.execute(f"""UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = 0;
+UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = CASE
+  WHEN areal_m2 <= 2000 AND tomtereserve_m2 = 0 AND (antall_bygninger::double precision / (areal_m2 / 1000.0)) <= {hytte_tetthet["liten"]["mean"]}
+       THEN max(0, ((areal_m2 * {hytte_tetthet["liten"]["conf_ints"][1]} / 1000.0) - antall_bygninger))
+  WHEN areal_m2 <= 2000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["liten"]["conf_ints"][1]}) / 1000.0 AS integer)
+  WHEN areal_m2 > 50000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["stor"]["conf_ints"][1]}) / 1000.0 AS integer)
+  ELSE CAST((tomtereserve_m2 * {hytte_tetthet["stor"]["conf_ints"][1]}) / 1000.0 AS integer)
+END::integer
+WHERE tomtereserve_m2 > 0 OR areal_m2 <= 2000;""")
 
 
 # # Analyse overlap with regulation plans
