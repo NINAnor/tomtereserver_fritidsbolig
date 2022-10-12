@@ -1114,11 +1114,11 @@ with ognp.connection.cursor() as cur:
     cur.execute(f"""ALTER TABLE "{ognp.active_schema}"."{fritidsboligformal}" ADD COLUMN IF NOT EXISTS {column} integer;""")
     cur.execute(f"""UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = 0;
 UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = CASE
-  WHEN areal_m2 <= 2000 AND tomtereserve_m2 = 0 AND (antall_bygninger::double precision / (areal_m2 / 1000.0)) <= {hytte_tetthet["liten"]["mean"]}
-       THEN max(0, ((areal_m2 * {hytte_tetthet["liten"]["conf_ints"][0]} / 1000.0) - antall_bygninger))
-  WHEN areal_m2 <= 2000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["liten"]["conf_ints"][0]}) / 1000.0 AS integer)
-  WHEN areal_m2 > 50000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["stor"]["conf_ints"][0]}) / 1000.0 AS integer)
-  ELSE CAST((tomtereserve_m2 * {hytte_tetthet["stor"]["conf_ints"][0]}) / 1000.0 AS integer)
+  WHEN areal_m2 <= 2000 AND tomtereserve_m2 = 0 AND (antall_bygninger::double precision / (areal_m2 / 1000.0)) <= {hytte_tetthet["liten"]["mean"] + hytte_tetthet["liten"]["conf_ints"][0]}
+       THEN max(0, ((areal_m2 * {hytte_tetthet["liten"]["mean"] + hytte_tetthet["liten"]["conf_ints"][0]} / 1000.0) - antall_bygninger))
+  WHEN areal_m2 <= 2000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["liten"]["mean"] + hytte_tetthet["liten"]["conf_ints"][0]}) / 1000.0 AS integer)
+  WHEN areal_m2 > 50000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["stor"]["mean"] + hytte_tetthet["stor"]["conf_ints"][0]}) / 1000.0 AS integer)
+  ELSE CAST((tomtereserve_m2 * {hytte_tetthet["middels"]["mean"] + hytte_tetthet["middels"]["conf_ints"][0]}) / 1000.0 AS integer)
 END::integer
 WHERE tomtereserve_m2 > 0 OR areal_m2 <= 2000;""")
 
@@ -1127,11 +1127,11 @@ with ognp.connection.cursor() as cur:
     cur.execute(f"""ALTER TABLE "{ognp.active_schema}"."{fritidsboligformal}" ADD COLUMN IF NOT EXISTS {column} integer;""")
     cur.execute(f"""UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = 0;
 UPDATE "{ognp.active_schema}"."{fritidsboligformal}" SET {column} = CASE
-  WHEN areal_m2 <= 2000 AND tomtereserve_m2 = 0 AND (antall_bygninger::double precision / (areal_m2 / 1000.0)) <= {hytte_tetthet["liten"]["mean"]}
-       THEN max(0, ((areal_m2 * {hytte_tetthet["liten"]["conf_ints"][1]} / 1000.0) - antall_bygninger))
-  WHEN areal_m2 <= 2000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["liten"]["conf_ints"][1]}) / 1000.0 AS integer)
-  WHEN areal_m2 > 50000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["stor"]["conf_ints"][1]}) / 1000.0 AS integer)
-  ELSE CAST((tomtereserve_m2 * {hytte_tetthet["stor"]["conf_ints"][1]}) / 1000.0 AS integer)
+  WHEN areal_m2 <= 2000 AND tomtereserve_m2 = 0 AND (antall_bygninger::double precision / (areal_m2 / 1000.0)) <= {hytte_tetthet["liten"]["mean"] + hytte_tetthet["liten"]["conf_ints"][1]}
+       THEN max(0, ((areal_m2 * {hytte_tetthet["liten"]["mean"] + hytte_tetthet["liten"]["conf_ints"][1]} / 1000.0) - antall_bygninger))
+  WHEN areal_m2 <= 2000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["liten"]["mean"] + hytte_tetthet["liten"]["conf_ints"][1]}) / 1000.0 AS integer)
+  WHEN areal_m2 > 50000 THEN CAST((tomtereserve_m2 * {hytte_tetthet["stor"]["mean"] + hytte_tetthet["stor"]["conf_ints"][1]}) / 1000.0 AS integer)
+  ELSE CAST((tomtereserve_m2 * {hytte_tetthet["middels"]["mean"] + hytte_tetthet["middels"]["conf_ints"][1]}) / 1000.0 AS integer)
 END::integer
 WHERE tomtereserve_m2 > 0 OR areal_m2 <= 2000;""")
 
